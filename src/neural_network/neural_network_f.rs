@@ -177,9 +177,7 @@ impl Controller for Rc<RefCell<NeuralNetwork>> {
         let output = self.borrow().get_output().unwrap();
 
         let mut direcition = PlayerDirection::None;
-        if output[0] > 0.5 && output[1] > 0.5 {
-            direcition = PlayerDirection::None;
-        } else if output[0] < 0.5 {
+        if output[0] < 0.5 {
             direcition = PlayerDirection::Up;
         } else if output[1] > 0.5 {
             direcition = PlayerDirection::Down;
