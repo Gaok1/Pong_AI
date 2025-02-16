@@ -36,7 +36,7 @@ async fn main() {
     let mut game = Pong::new(
         GameWindow::new(500.0, 400.0),
         Box::new(nn.clone()),
-        //Box::new(my_champion.clone()),
+        Box::new(my_champion.clone()),
         Vec2::new(100.0, 100.0),
     );
 
@@ -85,7 +85,7 @@ async fn main() {
                 game = Pong::new(
                     GameWindow::new(500.0, 400.0),
                     Box::new(nn.clone()),
-                    //Box::new(my_champion.clone()),
+                    Box::new(my_champion.clone()),
                     Vec2::new(100.0, 100.0),
                 );
             }

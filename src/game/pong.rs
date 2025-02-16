@@ -19,7 +19,6 @@ const PLAYER_HEIGHT: f32 = 70.0;
 const PLAYER_WIDTH: f32 = 10.0;
 const BALL_RADIUS: f32 = 10.0;
 
-
 struct Player {
     pub position: Vec2,
     pub controller: Box<dyn Controller>,
@@ -34,7 +33,9 @@ impl Player {
     }
 
     pub fn update(&mut self, ball_position: Vec2, ball_velocity: Vec2, player_position: Vec2) {
-        let (direction, velocity) = self.controller.get_input(ball_position, ball_velocity, player_position);
+        let (direction, velocity) =
+            self.controller
+                .get_input(ball_position, ball_velocity, player_position);
         match direction {
             PlayerDirection::Up => {
                 self.position.y -= (velocity as f32 * PLAYER_VELOCITY);
@@ -86,7 +87,7 @@ pub struct Pong {
     /// Posição do canto superior esquerdo do campo na tela
     pub position: Vec2,
     pub player1: Player,
- //   pub player2: Player,
+    pub player2: Player,
     pub pontuation: Pontuation,
     pub player_scale: Vec2,
     pub ball: Ball,
@@ -99,7 +100,7 @@ impl Pong {
     pub fn new(
         window: GameWindow,
         p1_controller: Box<dyn Controller>,
-      //  p2_controller: Box<dyn Controller>,
+        p2_controller: Box<dyn Controller>,
         position: Vec2,
     ) -> Self {
         let player_scale = Vec2::new(PLAYER_WIDTH, PLAYER_HEIGHT);
@@ -109,10 +110,10 @@ impl Pong {
             position.x + 20.0,
             position.y + window.height / 2.0 - player_scale.y / 2.0,
         );
-        // let player2_pos = Vec2::new(
-        //     position.x + window.width - 30.0,
-        //     position.y + window.height / 2.0 - player_scale.y / 2.0,
-        // );
+        let player2_pos = Vec2::new(
+            position.x + window.width - 30.0,
+            position.y + window.height / 2.0 - player_scale.y / 2.0,
+        );
 
         // Cria a bola no centro do "campo"
         let ball_start_pos = Vec2::new(
@@ -125,7 +126,7 @@ impl Pong {
             window,
             position, // salva o offset de desenho
             player1: Player::new(player1_pos, p1_controller),
-           // player2: Player::new(player2_pos, p2_controller),
+            player2: Player::new(player2_pos, p2_controller),
             player_scale,
             pontuation: Pontuation::new(),
             ball,
@@ -136,8 +137,12 @@ impl Pong {
     /// Atualiza o jogo e retorna Some(GameStats) se terminou (por pontuação), ou None se continua.
     pub fn update(&mut self) -> Option<GameStats> {
         let dt = get_frame_time();
-        self.player1.update(self.ball.position, self.ball.velocity, self.player1.position);
-        //self.player2.update(self.ball.position, self.ball.velocity, self.player2.position);
+        self.player1.update(
+            self.ball.position,
+            self.ball.velocity,
+            self.player1.position,
+        );
+        self.player2.update(self.ball.position, self.ball.velocity, self.player2.position);
         self.ball.update_position(dt);
 
         match self.check_collision() {
@@ -156,9 +161,10 @@ impl Pong {
         }
     }
 
+    //desenha o game (player, bal, campo)
     pub fn draw(&self) {
         // Desenha o campo
-        
+
         draw_rectangle_lines(
             self.position.x,
             self.position.y,
@@ -176,13 +182,13 @@ impl Pong {
             self.player_scale.y,
             BLACK,
         );
-        // draw_rectangle(
-        //     self.player2.position.x,
-        //     self.player2.position.y,
-        //     self.player_scale.x,
-        //     self.player_scale.y,
-        //     BLACK,
-        // );
+        draw_rectangle(
+            self.player2.position.x,
+            self.player2.position.y,
+            self.player_scale.x,
+            self.player_scale.y,
+            BLACK,
+        );
 
         // Escreve a pontuação
         draw_text(
@@ -200,6 +206,7 @@ impl Pong {
         self.ball.draw();
     }
 
+    //checa colisões de player e bola e retorna o vencedor caso haja uma colisão fatal
     fn check_collision(&mut self) -> Option<Winner> {
         let left_wall = self.position.x;
         let right_wall = self.position.x + self.window.width;
@@ -212,9 +219,8 @@ impl Pong {
             return Some(Winner::Player2);
         }
         if self.ball.position.x + BALL_RADIUS >= right_wall {
-            // self.finished = true;
-            // return Some(Winner::Player1);
-            self.ball.invert_velocity_x();
+            self.finished = true;
+            return Some(Winner::Player1);
         }
 
         // Colisão top/bottom
@@ -238,19 +244,19 @@ impl Pong {
             self.ball.position.x = self.player1.position.x + PLAYER_WIDTH + BALL_RADIUS;
         }
 
-        // // Player2
-        // let player2_rect = Rect::new(
-        //     self.player2.position.x,
-        //     self.player2.position.y,
-        //     PLAYER_WIDTH,
-        //     PLAYER_HEIGHT,
-        // );
-        // if self.ball.collision_cooldown <= 0.0 && self.ball.rect().overlaps(&player2_rect) {
-        //     self.ball.invert_velocity_x();
-        //     self.pontuation.increase_p2_score();
-        //     self.ball.collision_cooldown = 0.2;
-        //     self.ball.position.x = self.player2.position.x - BALL_RADIUS;
-        // }
+        // Player2
+        let player2_rect = Rect::new(
+            self.player2.position.x,
+            self.player2.position.y,
+            PLAYER_WIDTH,
+            PLAYER_HEIGHT,
+        );
+        if self.ball.collision_cooldown <= 0.0 && self.ball.rect().overlaps(&player2_rect) {
+            self.ball.invert_velocity_x();
+            self.pontuation.increase_p2_score();
+            self.ball.collision_cooldown = 0.2;
+            self.ball.position.x = self.player2.position.x - BALL_RADIUS;
+        }
 
         // Impede que os players saiam do campo
         if self.player1.position.y < top_wall {
@@ -259,12 +265,12 @@ impl Pong {
         if self.player1.position.y + PLAYER_HEIGHT > bottom_wall {
             self.player1.position.y = bottom_wall - PLAYER_HEIGHT;
         }
-        // if self.player2.position.y < top_wall {
-        //     self.player2.position.y = top_wall;
-        // }
-        // if self.player2.position.y + PLAYER_HEIGHT > bottom_wall {
-        //     self.player2.position.y = bottom_wall - PLAYER_HEIGHT;
-        // }
+        if self.player2.position.y < top_wall {
+            self.player2.position.y = top_wall;
+        }
+        if self.player2.position.y + PLAYER_HEIGHT > bottom_wall {
+            self.player2.position.y = bottom_wall - PLAYER_HEIGHT;
+        }
 
         None
     }
@@ -277,11 +283,11 @@ struct Ball {
     pub collision_cooldown: f32,
 }
 
-const MIN_HORIZONTAL_SPEED: f32 = 3.0;
+const MIN_HORIZONTAL_SPEED: f32 = 8.0;
 
 impl Ball {
     fn new(position: Vec2) -> Self {
-        let speed = 3.0;
+        let speed = 5.0;
         let angle = random_range(0.0..std::f32::consts::TAU);
         let mut vx = angle.cos() * speed;
         let vy = angle.sin() * speed;

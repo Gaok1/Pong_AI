@@ -1,8 +1,10 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
+use std::sync::Mutex;
+use std::time::Instant;
 
 use macroquad::math::Vec2;
 use rand::distr::uniform::SampleBorrow;
@@ -16,8 +18,10 @@ use super::layers::{self, Layer};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeuralNetwork {
-    pub inputs: Vec<f64>, // <-- NOVO: guarda os valores de entrada
+    pub inputs: Vec<f64>, 
     pub layers: Vec<Layer>,
+    #[serde(skip, default = "Instant::now")]
+    pub timer: Instant,
 }
 
 impl NeuralNetwork {
@@ -38,7 +42,11 @@ impl NeuralNetwork {
             layers.push(Layer::new(size, previous_size, activation));
             previous_size = size;
         }
-        Ok(NeuralNetwork { inputs, layers })
+        Ok(NeuralNetwork {
+            inputs,
+            layers,
+            timer: Instant::now(),
+        })
     }
 
     pub fn from_model(model: &NeuralNetworkModel) -> Self {
@@ -152,8 +160,8 @@ impl NeuralNetworkModel {
     }
 }
 
-// neural network must return 3 values : up,down, velocity. and
-// input must be velocity x,y and ball relative position x,y
+const REACTION_TIME: f64 = 0.16;
+
 impl Controller for Rc<RefCell<NeuralNetwork>> {
     fn get_input(
         &mut self,
@@ -161,12 +169,15 @@ impl Controller for Rc<RefCell<NeuralNetwork>> {
         ball_velocity: Vec2,
         player_position: Vec2,
     ) -> (PlayerDirection, f64) {
+        // returns Direction and Speed of the movement
+        // speed must be between 0 and 1, it will be multiplied by the player speed
+
         // Você precisa decidir como extrair os valores (ou usar unwrap) se necessário.
         let bp = ball_position;
         let pp = player_position;
 
-        let distance_ball_player_x = bp.x - pp.x;
-        let distance_ball_player_y = bp.y - pp.y;
+        let distance_ball_player_x = f32::max(pp.x, bp.x) - f32::min(pp.x, bp.x);
+        let distance_ball_player_y = f32::max(pp.y, bp.y) - f32::min(pp.y, bp.y);
 
         self.borrow_mut().feed(&[
             distance_ball_player_x as f64,
@@ -174,10 +185,13 @@ impl Controller for Rc<RefCell<NeuralNetwork>> {
             ball_velocity.x as f64,
             ball_velocity.y as f64,
         ]);
+
         let output = self.borrow().get_output().unwrap();
 
         let mut direcition = PlayerDirection::None;
-        if output[0] < 0.5 {
+        if output[0] > 0.5 && output[1] > 0.5 {
+            direcition = PlayerDirection::None;
+        } else if output[0] > 0.5 {
             direcition = PlayerDirection::Up;
         } else if output[1] > 0.5 {
             direcition = PlayerDirection::Down;
